@@ -103,28 +103,21 @@ contract HelloWorldServiceManager is ECDSAServiceManagerBase, IHelloWorldService
 
     /* FUNCTIONS */
     // NOTE: this function creates new task, assigns it a taskId
-    function createNewTask(
-        string memory name
-    ) external returns (Task memory) {
-        // create a new task struct
-        Task memory newTask;
-        newTask.name = name;
-        newTask.taskCreatedBlock = uint32(block.number);
-
-        // store hash of task onchain, emit event, and increase taskNum
-        allTaskHashes[latestTaskNum] = keccak256(abi.encode(newTask));
-        emit NewTaskCreated(latestTaskNum, newTask);
-        latestTaskNum = latestTaskNum + 1;
-
-        return newTask;
-    }
-
+    function borrowfund(uint256 shares ) external{
+        modifier onlyOperator() {
+        require(
+            ECDSAStakeRegistry(stakeRegistry).operatorRegistered(msg.sender),
+            "Operator must be the caller"
+        );
+    }}
+}
     function respondToTask(
         Task calldata task,
         uint32 referenceTaskIndex,
         bytes memory signature
     ) external {
         // check that the task is valid, hasn't been responded yet, and is being responded in time
+
         require(
             keccak256(abi.encode(task)) == allTaskHashes[referenceTaskIndex],
             "supplied task does not match the one recorded in the contract"
@@ -171,6 +164,8 @@ contract HelloWorldServiceManager is ECDSAServiceManagerBase, IHelloWorldService
             ECDSAStakeRegistry(stakeRegistry).isValidSignature(ethSignedMessageHash, signature);
 
         require(magicValue == isValidSignatureResult, "Invalid signature");
+
+    // logika yang harus divalidasi operator lain (balance, bunga, jangka waktu berapa)
     }
 
     function slashOperator(
@@ -201,6 +196,6 @@ contract HelloWorldServiceManager is ECDSAServiceManagerBase, IHelloWorldService
         // we update the storage with a sentinel value
         allTaskResponses[operator][referenceTaskIndex] = "slashed";
 
-        // TODO: slash operator
+// TODO: slash operator <- diisi logika akibat yang diterima operator jika melanggar atau terbukti curang (opsional)
     }
 }

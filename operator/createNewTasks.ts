@@ -26,7 +26,7 @@ function generateRandomName(): string {
     const randomName = `${adjective}${noun}${Math.floor(Math.random() * 1000)}`;
     return randomName;
   }
-
+// < ---------------
 async function createNewTask(taskName: string) {
   try {
     // Send a transaction to the createNewTask function

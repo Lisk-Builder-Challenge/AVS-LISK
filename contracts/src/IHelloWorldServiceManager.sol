@@ -31,7 +31,7 @@ interface IHelloWorldServiceManager {
         uint32 referenceTaskIndex,
         bytes calldata signature
     ) external;
-
+// <- batas diganti
     function slashOperator(
         Task calldata task,
         uint32 referenceTaskIndex,
