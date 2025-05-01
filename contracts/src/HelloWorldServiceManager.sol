@@ -103,13 +103,17 @@ contract HelloWorldServiceManager is ECDSAServiceManagerBase, IHelloWorldService
 
     /* FUNCTIONS */
     // NOTE: this function creates new task, assigns it a taskId
-    function borrowfund(uint256 shares ) external{
+    function borrowfund(
+        uint256 shares, 
+    ) 
+        external{
         modifier onlyOperator() {
         require(
             ECDSAStakeRegistry(stakeRegistry).operatorRegistered(msg.sender),
             "Operator must be the caller"
         );
-    }}
+        }
+    }
 }
     function respondToTask(
         Task calldata task,
