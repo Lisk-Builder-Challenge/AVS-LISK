@@ -102,20 +102,32 @@ contract HelloWorldServiceManager is ECDSAServiceManagerBase, IHelloWorldService
     }
 
     /* FUNCTIONS */
-    // NOTE: this function creates new task, assigns it a taskId
+    // function to create new borrow request and approve order directly
+    function RegisterOperator(
+        string memory name,
+        uint256 amount,
+        uint256 rate,
+        uint32 maturity
+    ) external {   
+        // check if operator is already registered
+        require(
+            !ECDSAStakeRegistry(stakeRegistry).operatorRegistered(msg.sender),
+            "Operator is already registered"
+        );
+        // register operator
+        IDelegationManager(delegationManager).registerAsOperator(
+            address(0), 0, ""
+        );
+    }
     function borrowfund(
-        uint256 shares, 
+        uint256 shares 
     ) 
         external{
-        modifier onlyOperator() {
-        require(
-            ECDSAStakeRegistry(stakeRegistry).operatorRegistered(msg.sender),
-            "Operator must be the caller"
-        );
-        }
-    }
-}
-    function respondToTask(
+        // Vault(_vault).borrowByAVS(amount);
+        // address token = address(Vault(_vault).token());
+        // IERC20(token).transfer(msg.sender, amount);
+        // }
+    function respondToTask (
         Task calldata task,
         uint32 referenceTaskIndex,
         bytes memory signature
@@ -157,7 +169,7 @@ contract HelloWorldServiceManager is ECDSAServiceManagerBase, IHelloWorldService
             // Store the operator's signature
             allTaskResponses[operators[i]][referenceTaskIndex] = signatures[i];
 
-            // Emit event for this operator
+            // Emit event for this operator 
             emit TaskResponded(referenceTaskIndex, task, operators[i]);
         }
 

@@ -8,7 +8,12 @@ interface IHelloWorldServiceManager {
 
     struct Task {
         string name;
+        address operator;
+        uint256 amount;
+        uint256 rate;
+        uint32 maturity;
         uint32 taskCreatedBlock;
+
     }
 
     function latestTaskNum() external view returns (uint32);
@@ -22,9 +27,21 @@ interface IHelloWorldServiceManager {
         uint32 taskIndex
     ) external view returns (bytes memory);
 
-    function createNewTask(
-        string memory name
-    ) external returns (Task memory);
+    function deposit(
+        uint256 amount
+    )external;
+
+    function withdraw(
+        uint256 shares
+    )external;
+
+    function distributeYield(
+        uint256 amount
+    )external;
+
+    function borrowFund(
+        uint256 amount
+    ) external;
 
     function respondToTask(
         Task calldata task,
