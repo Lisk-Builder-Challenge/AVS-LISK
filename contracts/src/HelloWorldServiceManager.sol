@@ -119,14 +119,6 @@ contract HelloWorldServiceManager is ECDSAServiceManagerBase, IHelloWorldService
             address(0), 0, ""
         );
     }
-    function borrowfund(
-        uint256 shares 
-    ) 
-        external{
-        // Vault(_vault).borrowByAVS(amount);
-        // address token = address(Vault(_vault).token());
-        // IERC20(token).transfer(msg.sender, amount);
-        // }
     function respondToTask (
         Task calldata task,
         uint32 referenceTaskIndex,
