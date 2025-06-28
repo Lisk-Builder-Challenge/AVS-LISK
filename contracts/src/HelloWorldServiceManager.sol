@@ -15,23 +15,18 @@ import "@eigenlayer/contracts/interfaces/IRewardsCoordinator.sol";
 import {IAllocationManager} from "@eigenlayer/contracts/interfaces/IAllocationManager.sol";
 import {TransparentUpgradeableProxy} from
     "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import {IVault} from "./Interfaces/IVault.sol";
+import {IYieldzAVS} from "./Interfaces/IYieldzAVS.sol";
 
-/**
- * @title Primary entrypoint for procuring services from HelloWorld.
- * @author Eigen Labs, Inc.
- */
 contract HelloWorldServiceManager is ECDSAServiceManagerBase, IHelloWorldServiceManager {
     using ECDSAUpgradeable for bytes32;
 
     uint32 public latestTaskNum;
 
-    // mapping of task indices to all tasks hashes
-    // when a task is created, task hash is stored here,
-    // and responses need to pass the actual task,
-    // which is hashed onchain and checked against this mapping
+    //mapping menyimpan hash dari setiap task berdasarkan Task struct dengan indeks uint32 <- untuk validasi task di respondTask
     mapping(uint32 => bytes32) public allTaskHashes;
 
-    // mapping of task indices to hash of abi.encode(taskResponse, taskResponseMetadata)
+    //mapping bertingkat untuk mentimpan respons (signature) dari operator untuk setiap task
     mapping(address => mapping(uint32 => bytes)) public allTaskResponses;
 
     // mapping of task indices to task status (true if task has been responded to, false otherwise)
@@ -50,12 +45,17 @@ contract HelloWorldServiceManager is ECDSAServiceManagerBase, IHelloWorldService
         _;
     }
 
-    constructor(
+    address public immutable yieldzAVS;
+    address public immutable vault;
+
+constructor(
         address _avsDirectory,
         address _stakeRegistry,
         address _rewardsCoordinator,
         address _delegationManager,
         address _allocationManager,
+        address _yieldzAVS,
+        address _vault,
         uint32 _maxResponseIntervalBlocks
     )
         ECDSAServiceManagerBase(
@@ -66,9 +66,12 @@ contract HelloWorldServiceManager is ECDSAServiceManagerBase, IHelloWorldService
             _allocationManager
         )
     {
+        yieldzAVS = _yieldzAVS;
+        vault = _vault;
         MAX_RESPONSE_INTERVAL_BLOCKS = _maxResponseIntervalBlocks;
     }
 
+    //Inisialisasi untuk kontrak upgradeable
     function initialize(address initialOwner, address _rewardsInitiator) external initializer {
         __ServiceManagerBase_init(initialOwner, _rewardsInitiator);
     }
@@ -114,18 +117,48 @@ contract HelloWorldServiceManager is ECDSAServiceManagerBase, IHelloWorldService
             !ECDSAStakeRegistry(stakeRegistry).operatorRegistered(msg.sender),
             "Operator is already registered"
         );
-        // register operator
+        // register operator; Memanggil fungsi registerAsOperator pada kontrak DelegationManager (komponen EigenLayer) untuk mendaftarkan msg.sender sebagai operator. Parameter address(0), 0, dan "" adalah nilai placeholder (sesuai dengan template HelloWorldAVS), yang menunjukkan bahwa registrasi dilakukan tanpa delegasi atau metadata tambahan.
         IDelegationManager(delegationManager).registerAsOperator(
             address(0), 0, ""
         );
+        // Buat task peminjaman
+        createBorrowTask(msg.sender, name, amount, interestRate, maturity);
     }
+
+    //fungsi untuk membuat task peminjaman
+    function createBorrowTask(
+        address operator,
+        string memory name,
+        uint256 amount,
+        uint256 interestRate,
+        uint256 maturity
+    ) public onlyOwner {
+        require(maturity > block.timestamp, "Maturity must be in the future");
+        require(amount > 0, "Amount must be greater than zero");
+        require(amount <= IVault(vault).totalAssets()-IVault(vault).totalBorrowed(), "Insufficient liquidity");
+
+        Task memory newTask = Task({
+            operator: operator,
+            name: name,
+            amount: amount,
+            interestRate: interestRate,
+            maturity: maturity,
+            taskCreatedBlock: uint32(block.number)
+        });
+
+        //menghitung hash dari stuktur Task lalu menyimpannya di allTaskHashes dengan indeks LastestTaskNum <- validasi task di fungsi respondToTask
+        allTaskHashes[latestTaskNum] = keccak256(abi.encode(newTask));
+        emit TaskCreated(latestTaskNum, newTask);
+        latestTaskNum++;
+    }
+
+    //Fungsi untuk merespons task peminjaman 
     function respondToTask (
         Task calldata task,
         uint32 referenceTaskIndex,
         bytes memory signature
     ) external {
-        // check that the task is valid, hasn't been responded yet, and is being responded in time
-
+        //Validasi task 
         require(
             keccak256(abi.encode(task)) == allTaskHashes[referenceTaskIndex],
             "supplied task does not match the one recorded in the contract"
@@ -134,9 +167,13 @@ contract HelloWorldServiceManager is ECDSAServiceManagerBase, IHelloWorldService
             block.number <= task.taskCreatedBlock + MAX_RESPONSE_INTERVAL_BLOCKS,
             "Task response time has already expired"
         );
+        require(
+            ECDSAStakeRegistry(stakeRegistry).operatorRegistered(task.operator),
+            "Operator Not Registered"
+        );
 
         // The message that was signed
-        bytes32 messageHash = keccak256(abi.encodePacked("Hello, ", task.name));
+        bytes32 messageHash = keccak256(abi.encode(task));
         bytes32 ethSignedMessageHash = messageHash.toEthSignedMessageHash();
         bytes4 magicValue = IERC1271Upgradeable.isValidSignature.selector;
 
@@ -158,6 +195,11 @@ contract HelloWorldServiceManager is ECDSAServiceManagerBase, IHelloWorldService
                 "Operator has already responded to the task"
             );
 
+            require(
+                ECDSAStakeRegistry(stakeRegistry).operatorRegistered(operators[i]),
+                "Responder not registered"
+            );
+
             // Store the operator's signature
             allTaskResponses[operators[i]][referenceTaskIndex] = signatures[i];
 
@@ -173,14 +215,17 @@ contract HelloWorldServiceManager is ECDSAServiceManagerBase, IHelloWorldService
 
         require(magicValue == isValidSignatureResult, "Invalid signature");
 
-    // logika yang harus divalidasi operator lain (balance, bunga, jangka waktu berapa)
+        //proses peminjaman melalui IYieldzAVS
+        IYieldzACS(yieldzAVS).borrowFund(vault, task.operator, task.amount, task.interestRate, task.maturity);
+
     }
 
+    //fungsi untuk menangani pelanggaran operator
     function slashOperator(
         Task calldata task,
         uint32 referenceTaskIndex,
         address operator
-    ) external {
+    ) external onlyOwner{
         // check that the task is valid, hasn't been responsed yet
         require(
             keccak256(abi.encode(task)) == allTaskHashes[referenceTaskIndex],
@@ -195,7 +240,7 @@ contract HelloWorldServiceManager is ECDSAServiceManagerBase, IHelloWorldService
             block.number > task.taskCreatedBlock + MAX_RESPONSE_INTERVAL_BLOCKS,
             "Task response time has not expired yet"
         );
-        // check operator was registered when task was created
+
         uint256 operatorWeight = ECDSAStakeRegistry(stakeRegistry).getOperatorWeightAtBlock(
             operator, task.taskCreatedBlock
         );
@@ -204,6 +249,18 @@ contract HelloWorldServiceManager is ECDSAServiceManagerBase, IHelloWorldService
         // we update the storage with a sentinel value
         allTaskResponses[operator][referenceTaskIndex] = "slashed";
 
-// TODO: slash operator <- diisi logika akibat yang diterima operator jika melanggar atau terbukti curang (opsional)
+        //Batalkan pinjaman di YieldAVS jika ada
+        //mengambil detail pinjaman operator dari YieldAVS
+        (uint256 loanAmount,, uint256 borrowedAt, uint256 maturity) = IYieldzAVS(yieldzAVS).getLoanDetails(operator);
+
+        //Apakah operator memliki pinjaman aktif dan apakah telah jatuh tempo
+        //jika terpenuhi pinjaman akan dibatalkan
+        if(loanAmount > 0 && block.timestamp > maturity){
+            IYieldzAVS(yieldzAVS).reduceBorrowed(loanAmount);
+            emit OperatorSlashed(operator, referenceTaskIndex, loanAmount);
+        } else {
+            emit OperatorSlashed(operator, referenceTaskIndex, 0);
+        }
+
     }
 }
