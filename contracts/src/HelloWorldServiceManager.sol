@@ -9,7 +9,7 @@ import {ECDSAUpgradeable} from
     "@openzeppelin-upgrades/contracts/utils/cryptography/ECDSAUpgradeable.sol";
 import {IERC1271Upgradeable} from
     "@openzeppelin-upgrades/contracts/interfaces/IERC1271Upgradeable.sol";
-import {IHelloWorldServiceManager} from "./IHelloWorldServiceManager.sol";
+import {IHelloWorldServiceManager} from "./Interfaces/IHelloWorldServiceManager.sol;
 import "@openzeppelin/contracts/utils/Strings.sol";
 import "@eigenlayer/contracts/interfaces/IRewardsCoordinator.sol";
 import {IAllocationManager} from "@eigenlayer/contracts/interfaces/IAllocationManager.sol";
@@ -18,7 +18,10 @@ import {TransparentUpgradeableProxy} from
 import {IVault} from "./Interfaces/IVault.sol";
 import {IYieldzAVS} from "./Interfaces/IYieldzAVS.sol";
 
-contract HelloWorldServiceManager is ECDSAServiceManagerBase, IHelloWorldServiceManager {
+contract HelloWorldServiceManager is 
+    ECDSAServiceManagerBase, 
+    IHelloWorldServiceManager 
+{
     using ECDSAUpgradeable for bytes32;
 
     uint32 public latestTaskNum;
@@ -31,7 +34,9 @@ contract HelloWorldServiceManager is ECDSAServiceManagerBase, IHelloWorldService
 
     // mapping of task indices to task status (true if task has been responded to, false otherwise)
     // TODO: use bitmap?
-    mapping(uint32 => bool) public taskWasResponded;
+    mapping(uint32 => uint256) public taskWasResponded;
+
+    mapping(uint256 => TaskStatus) public taskStatus;
 
     // max interval in blocks for responding to a task
     // operators can be penalized if they don't respond in time
@@ -113,7 +118,7 @@ constructor(
         uint32 maturity
     ) external {   
         // check if operator is already registered
-        require(
+        require(    
             !ECDSAStakeRegistry(stakeRegistry).operatorRegistered(msg.sender),
             "Operator is already registered"
         );
@@ -130,7 +135,7 @@ constructor(
         address operator,
         string memory name,
         uint256 amount,
-        uint256 interestRate,
+        uint256 rate,
         uint256 maturity
     ) public onlyOwner {
         require(maturity > block.timestamp, "Maturity must be in the future");
@@ -171,6 +176,9 @@ constructor(
             ECDSAStakeRegistry(stakeRegistry).operatorRegistered(task.operator),
             "Operator Not Registered"
         );
+        require(
+            operators.length == 1 && operators[0] == task.operator, "Only task operator can respond"
+        );
 
         // The message that was signed
         bytes32 messageHash = keccak256(abi.encode(task));
@@ -205,6 +213,7 @@ constructor(
 
             // Emit event for this operator 
             emit TaskResponded(referenceTaskIndex, task, operators[i]);
+            emit BorrowFilled(referenceTaskIndex, task);
         }
 
         taskWasResponded[referenceTaskIndex] = true;
@@ -216,8 +225,20 @@ constructor(
         require(magicValue == isValidSignatureResult, "Invalid signature");
 
         //proses peminjaman melalui IYieldzAVS
-        IYieldzACS(yieldzAVS).borrowFund(vault, task.operator, task.amount, task.interestRate, task.maturity);
+        IYieldzAVS(yieldzAVS).borrowFund(vault, task.operator, task.amount, task.interestRate, task.maturity);
 
+    }
+    function initialize(address initialOwner, address _rewardsInitiator) external initializer {
+        require(initialOwner != address(0), "Invalid initial owner");
+        require(_rewardsInitiator != address(0), "Invalid rewards initiator");
+        __ServiceManagerBase_init(initialOwner, _rewardsInitiator);
+    }
+
+    function cancelBorrowTask(uint32 taskIndex) external onlyOwner {
+        require(!taskWasResponded[taskIndex], "Task already responded");
+        require(allTaskHashes[taskIndex] != bytes32(0), "Task does not exist");
+        taskStatus[taskIndex] = TaskStatus.CANCELED;
+        emit BorrowCanceled(taskIndex, task, msg.sender);
     }
 
     //fungsi untuk menangani pelanggaran operator
@@ -256,7 +277,7 @@ constructor(
         //Apakah operator memliki pinjaman aktif dan apakah telah jatuh tempo
         //jika terpenuhi pinjaman akan dibatalkan
         if(loanAmount > 0 && block.timestamp > maturity){
-            IYieldzAVS(yieldzAVS).reduceBorrowed(loanAmount);
+            IVault(vault).reduceBorrowed(loanAmount);
             emit OperatorSlashed(operator, referenceTaskIndex, loanAmount);
         } else {
             emit OperatorSlashed(operator, referenceTaskIndex, 0);

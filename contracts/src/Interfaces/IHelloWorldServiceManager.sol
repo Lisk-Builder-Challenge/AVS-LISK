@@ -2,9 +2,21 @@
 pragma solidity ^0.8.9;
 
 interface IHelloWorldServiceManager {
+    enum TaskStatus{
+        PENDING,
+        RESPONDED,
+        FILLED,
+        CANCELED
+    }
     event NewTaskCreated(uint32 indexed taskIndex, Task task);
 
     event TaskResponded(uint32 indexed taskIndex, Task task, address operator);
+
+    event BorrowFilled(uint32 indexed taskNum, Task task);
+
+    event BorrowCanceled(uint32 indexed taskNum, Task task, address operator);
+
+    event OperatorSlashed(address indexed operator, uint32 indexed taskNum, uint256 amount );
 
     struct Task {
         string name;
@@ -25,28 +37,16 @@ interface IHelloWorldServiceManager {
     function allTaskResponses(
         address operator,
         uint32 taskIndex
-    ) external view returns (bytes memory);
-
-    function deposit(
-        uint256 amount
-    )external;
-
-    function withdraw(
-        uint256 shares
-    )external;
-
-    function distributeYield(
-        uint256 amount
-    )external;
-
-    function borrowFund(
-        uint256 amount
-    ) external;
+    ) external view returns (bytes memory); 
 
     function respondToTask(
         Task calldata task,
         uint32 referenceTaskIndex,
         bytes calldata signature
+    ) external;
+
+    function cancelBorrowTask(
+        uint32 taskIndex
     ) external;
 // <- batas diganti
     function slashOperator(
