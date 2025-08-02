@@ -9,7 +9,7 @@ import {ECDSAUpgradeable} from
     "@openzeppelin-upgrades/contracts/utils/cryptography/ECDSAUpgradeable.sol";
 import {IERC1271Upgradeable} from
     "@openzeppelin-upgrades/contracts/interfaces/IERC1271Upgradeable.sol";
-import {IHelloWorldServiceManager} from "./Interfaces/IHelloWorldServiceManager.sol;
+import {IHelloWorldServiceManager} from "./Interfaces/IHelloWorldServiceManager.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 import "@eigenlayer/contracts/interfaces/IRewardsCoordinator.sol";
 import {IAllocationManager} from "@eigenlayer/contracts/interfaces/IAllocationManager.sol";
@@ -127,7 +127,7 @@ constructor(
             address(0), 0, ""
         );
         // Buat task peminjaman
-        createBorrowTask(msg.sender, name, amount, interestRate, maturity);
+        createBorrowTask(msg.sender, name, amount, rate, maturity);
     }
 
     //fungsi untuk membuat task peminjaman
@@ -146,14 +146,14 @@ constructor(
             operator: operator,
             name: name,
             amount: amount,
-            interestRate: interestRate,
-            maturity: maturity,
+            rate: rate,
+            maturity: uint32(maturity),
             taskCreatedBlock: uint32(block.number)
         });
 
         //menghitung hash dari stuktur Task lalu menyimpannya di allTaskHashes dengan indeks LastestTaskNum <- validasi task di fungsi respondToTask
         allTaskHashes[latestTaskNum] = keccak256(abi.encode(newTask));
-        emit TaskCreated(latestTaskNum, newTask);
+        // emit TaskCreated(latestTaskNum, newTask);
         latestTaskNum++;
     }
 
@@ -176,9 +176,9 @@ constructor(
             ECDSAStakeRegistry(stakeRegistry).operatorRegistered(task.operator),
             "Operator Not Registered"
         );
-        require(
-            operators.length == 1 && operators[0] == task.operator, "Only task operator can respond"
-        );
+        // require(
+        //     operators.length == 1 && operators[0] == task.operator, "Only task operator can respond"
+        // );
 
         // The message that was signed
         bytes32 messageHash = keccak256(abi.encode(task));
@@ -225,20 +225,15 @@ constructor(
         require(magicValue == isValidSignatureResult, "Invalid signature");
 
         //proses peminjaman melalui IYieldzAVS
-        IYieldzAVS(yieldzAVS).borrowFund(vault, task.operator, task.amount, task.interestRate, task.maturity);
+        IYieldzAVS(yieldzAVS).borrowFund(vault, task.operator, task.amount, task.rate, task.maturity);
 
     }
-    function initialize(address initialOwner, address _rewardsInitiator) external initializer {
-        require(initialOwner != address(0), "Invalid initial owner");
-        require(_rewardsInitiator != address(0), "Invalid rewards initiator");
-        __ServiceManagerBase_init(initialOwner, _rewardsInitiator);
-    }
-
+    
     function cancelBorrowTask(uint32 taskIndex) external onlyOwner {
         require(!taskWasResponded[taskIndex], "Task already responded");
         require(allTaskHashes[taskIndex] != bytes32(0), "Task does not exist");
         taskStatus[taskIndex] = TaskStatus.CANCELED;
-        emit BorrowCanceled(taskIndex, task, msg.sender);
+        emit BorrowCanceled(taskIndex, Task, msg.sender);
     }
 
     //fungsi untuk menangani pelanggaran operator

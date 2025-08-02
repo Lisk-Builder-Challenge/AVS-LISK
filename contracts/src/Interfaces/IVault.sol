@@ -1,7 +1,7 @@
 //SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 interface IVault is IERC20 {
     function deposit(uint256 amount) external;
@@ -19,4 +19,12 @@ interface IVault is IERC20 {
     function removeAssets(address operator, uint256 amount) external;
 
     function reduceBorrowed(uint256 amount) external;
+
+    function totalAssets() external view returns (uint256);
+
+    function totalBorrowed() external view returns (uint256);
+
+    function avs() external view returns (address);
+
+    function token() external view returns (address);
 }

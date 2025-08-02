@@ -29,9 +29,11 @@ import {ISignatureUtilsMixinTypes} from "@eigenlayer/contracts/interfaces/ISigna
 import {AVSDirectory} from "@eigenlayer/contracts/core/AVSDirectory.sol";
 import {IAVSDirectoryTypes} from "@eigenlayer/contracts/interfaces/IAVSDirectory.sol";
 import {Test, console2 as console} from "forge-std/Test.sol";
-import {IHelloWorldServiceManager} from "../src/IHelloWorldServiceManager.sol";
+import {IHelloWorldServiceManager} from "../src/Interfaces/IHelloWorldServiceManager.sol";
 import {ECDSAUpgradeable} from
     "@openzeppelin-upgrades/contracts/utils/cryptography/ECDSAUpgradeable.sol";
+import {IVault} from "../src/Interfaces/IVault.sol";
+import {IYieldzAVS} from "../src/Interfaces/IYieldzAVS.sol";
 
 contract HelloWorldTaskManagerSetup is Test {
     // used for `toEthSignedMessageHash`

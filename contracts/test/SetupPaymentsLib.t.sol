@@ -6,11 +6,13 @@ import "../script/utils/SetupDistributionsLib.sol";
 import "../script/utils/CoreDeploymentParsingLib.sol";
 import "../script/utils/HelloWorldDeploymentLib.sol";
 import "@eigenlayer/contracts/interfaces/IRewardsCoordinator.sol";
-import "../src/IHelloWorldServiceManager.sol";
+import "../src/Interfaces/IHelloWorldServiceManager.sol";
 import "@eigenlayer/contracts/interfaces/IStrategy.sol";
 import "@eigenlayer/contracts/libraries/Merkle.sol";
 import "../script/DeployEigenLayerCore.s.sol";
 import "../script/HelloWorldDeployer.s.sol";
+import "../src/Interfaces/IVault.sol";
+import "../src/Interfaces/IYieldzAVS.sol";
 import {StrategyFactory} from "@eigenlayer/contracts/strategies/StrategyFactory.sol";
 import {HelloWorldTaskManagerSetup} from "test/HelloWorldServiceManager.t.sol";
 import {ECDSAServiceManagerBase} from
