@@ -26,10 +26,23 @@ library HelloWorldDeploymentLib {
 
     struct DeploymentData {
         address helloWorldServiceManager;
+        address avsDirectory;
         address stakeRegistry;
         address strategy;
+        address rewardsCoordinator;
+        address delegationManager;
+        address allocationManager;
+        address strategyManager;
+        address eigenPodManager;
+        address eigenPodBeacon;
+        address pauserRegistry;
+        address strategyFactory;
+        address strategyBeacon;
+        address yieldzAVS; 
+        address vault;   
         address token;
-    }
+        uint32 maxResponseIntervalBlocks;
+    }   
 
     struct DeploymentConfigData {
         address rewardsOwner;
@@ -86,18 +99,16 @@ library HelloWorldDeploymentLib {
                 core.rewardsCoordinator,
                 core.delegationManager,
                 core.allocationManager,
-                4
+                core.yieldzAVS, 
+                core.vault,     
+                core.maxResponseIntervalBlocks
             )
         );
 
-        bytes memory upgradeCall =
-            abi.encodeCall(HelloWorldServiceManager.initialize, (owner, rewardsInitiator));
-
-        UpgradeableProxyLib.upgradeAndCall(
-            helloWorldServiceManager, helloWorldServiceManagerImpl, upgradeCall
-        );
+        bytes memory upgradeCall = abi.encodeCall(HelloWorldServiceManager.initialize, (owner, rewardsInitiator));
+        UpgradeableProxyLib.upgradeAndCall(helloWorldServiceManager, helloWorldServiceManagerImpl, upgradeCall);
     }
-
+  
     function readDeploymentJson(
         uint256 chainId
     ) internal view returns (DeploymentData memory) {

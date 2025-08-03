@@ -34,9 +34,10 @@ contract HelloWorldServiceManager is
 
     // mapping of task indices to task status (true if task has been responded to, false otherwise)
     // TODO: use bitmap?
-    mapping(uint32 => uint256) public taskWasResponded;
+    mapping(uint32 => bool) public taskWasResponded;
 
     mapping(uint256 => TaskStatus) public taskStatus;
+    mapping(uint256 => Task) public tasks;
 
     // max interval in blocks for responding to a task
     // operators can be penalized if they don't respond in time
@@ -137,7 +138,7 @@ constructor(
         uint256 amount,
         uint256 rate,
         uint256 maturity
-    ) public onlyOwner {
+    ) public onlyOwner returns (Task memory){
         require(maturity > block.timestamp, "Maturity must be in the future");
         require(amount > 0, "Amount must be greater than zero");
         require(amount <= IVault(vault).totalAssets()-IVault(vault).totalBorrowed(), "Insufficient liquidity");
@@ -155,6 +156,7 @@ constructor(
         allTaskHashes[latestTaskNum] = keccak256(abi.encode(newTask));
         // emit TaskCreated(latestTaskNum, newTask);
         latestTaskNum++;
+        return newTask;
     }
 
     //Fungsi untuk merespons task peminjaman 
@@ -233,7 +235,7 @@ constructor(
         require(!taskWasResponded[taskIndex], "Task already responded");
         require(allTaskHashes[taskIndex] != bytes32(0), "Task does not exist");
         taskStatus[taskIndex] = TaskStatus.CANCELED;
-        emit BorrowCanceled(taskIndex, Task, msg.sender);
+        emit BorrowCanceled(taskIndex, tasks[taskIndex], msg.sender);
     }
 
     //fungsi untuk menangani pelanggaran operator

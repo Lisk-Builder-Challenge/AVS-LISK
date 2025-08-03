@@ -19,5 +19,5 @@ interface IYieldzAVS is IERC20 {
 
     function repayByAVS(address _vault, address operator, uint256 amount) external;
 
-    function getLoanDetails(address operator) external;
+    function getLoanDetails(address operator) external view returns (uint256, uint256, uint256, uint256);
 }

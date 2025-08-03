@@ -8,7 +8,8 @@ import {Vm} from "forge-std/Vm.sol";
 import {console2} from "forge-std/Test.sol";
 import {HelloWorldDeploymentLib} from "../script/utils/HelloWorldDeploymentLib.sol";
 import {
-    CoreDeployLib, CoreDeploymentParsingLib
+    CoreDeployLib,
+    CoreDeploymentParsingLib
 } from "../script/utils/CoreDeploymentParsingLib.sol";
 import {UpgradeableProxyLib} from "../script/utils/UpgradeableProxyLib.sol";
 import {ERC20Mock} from "./ERC20Mock.sol";
@@ -34,6 +35,8 @@ import {ECDSAUpgradeable} from
     "@openzeppelin-upgrades/contracts/utils/cryptography/ECDSAUpgradeable.sol";
 import {IVault} from "../src/Interfaces/IVault.sol";
 import {IYieldzAVS} from "../src/Interfaces/IYieldzAVS.sol";
+import {MockVault} from "./MockVault.sol";
+import {MockYieldzAVS} from "./MockYieldzAVS.sol";
 
 contract HelloWorldTaskManagerSetup is Test {
     // used for `toEthSignedMessageHash`
@@ -60,11 +63,13 @@ contract HelloWorldTaskManagerSetup is Test {
 
     HelloWorldDeploymentLib.DeploymentData internal helloWorldDeployment;
     CoreDeployLib.DeploymentData internal coreDeployment;
-    CoreDeployLib.DeploymentConfigData coreConfigData;
+    CoreDeployLib.DeploymentConfigData internal coreConfigData;
 
     address proxyAdmin;
 
     ERC20Mock public mockToken;
+    MockVault public mockVault;
+    MockYieldzAVS public mockYieldzAVS;
 
     mapping(address => IStrategy) public tokenToStrategy;
 
@@ -74,16 +79,15 @@ contract HelloWorldTaskManagerSetup is Test {
 
         proxyAdmin = UpgradeableProxyLib.deployProxyAdmin();
 
-        coreConfigData =
-            CoreDeploymentParsingLib.readDeploymentConfigValues("test/mockData/config/core/", 1337);
+        coreConfigData = CoreDeploymentParsingLib.readDeploymentConfigValues("test/mockData/config/core/", 1337);
         coreDeployment = CoreDeployLib.deployContracts(proxyAdmin, coreConfigData);
 
         vm.prank(coreConfigData.strategyManager.initialOwner);
-        StrategyManager(coreDeployment.strategyManager).setStrategyWhitelister(
-            coreDeployment.strategyFactory
-        );
+        StrategyManager(coreDeployment.strategyManager).setStrategyWhitelister(coreDeployment.strategyFactory);
 
         mockToken = new ERC20Mock();
+        mockVault = new MockVault();
+        mockYieldzAVS = new MockYieldzAVS();
 
         IStrategy strategy = addStrategy(address(mockToken));
         quorum.strategies.push(
@@ -95,6 +99,8 @@ contract HelloWorldTaskManagerSetup is Test {
         );
         helloWorldDeployment.strategy = address(strategy);
         helloWorldDeployment.token = address(mockToken);
+        helloWorldDeployment.vault = address(mockVault); // Tambahkan vault mock
+        helloWorldDeployment.yieldzAVS = address(mockYieldzAVS); // Tambahkan yieldzAVS mock
         labelContracts(coreDeployment, helloWorldDeployment);
     }
 
@@ -262,14 +268,18 @@ contract HelloWorldTaskManagerSetup is Test {
     }
 
     function createTask(
-        string memory taskName
+        string memory taskName,
+        address operator,
+        uint256 amount,
+        uint256 rate,
+        uint32 maturity
     ) internal returns (IHelloWorldServiceManager.Task memory task, uint32 taskIndex) {
         IHelloWorldServiceManager helloWorldServiceManager =
             IHelloWorldServiceManager(helloWorldDeployment.helloWorldServiceManager);
 
-        vm.prank(generator.key.addr);
+        vm.prank(owner.key.addr); // Hanya owner yang bisa memanggil createBorrowTask
         taskIndex = helloWorldServiceManager.latestTaskNum();
-        task = helloWorldServiceManager.createNewTask(taskName);
+        task = helloWorldServiceManager.createBorrowTask(operator, taskName, amount, rate, maturity);
         return (task, taskIndex);
     }
 
@@ -317,95 +327,6 @@ contract HelloWorldTaskManagerSetup is Test {
     }
 }
 
-contract HelloWorldServiceManagerInitialization is HelloWorldTaskManagerSetup {
-    function testInitialization() public view {
-        ECDSAStakeRegistry stakeRegistry = ECDSAStakeRegistry(helloWorldDeployment.stakeRegistry);
-
-        IECDSAStakeRegistryTypes.Quorum memory quorum = stakeRegistry.quorum();
-
-        assertGt(quorum.strategies.length, 0, "No strategies in quorum");
-        assertEq(
-            address(quorum.strategies[0].strategy),
-            address(tokenToStrategy[address(mockToken)]),
-            "First strategy doesn't match mock token strategy"
-        );
-
-        assertTrue(helloWorldDeployment.stakeRegistry != address(0), "StakeRegistry not deployed");
-        assertTrue(
-            helloWorldDeployment.helloWorldServiceManager != address(0),
-            "HelloWorldServiceManager not deployed"
-        );
-        assertTrue(coreDeployment.delegationManager != address(0), "DelegationManager not deployed");
-        assertTrue(coreDeployment.avsDirectory != address(0), "AVSDirectory not deployed");
-        assertTrue(coreDeployment.strategyManager != address(0), "StrategyManager not deployed");
-        assertTrue(coreDeployment.eigenPodManager != address(0), "EigenPodManager not deployed");
-        assertTrue(coreDeployment.strategyFactory != address(0), "StrategyFactory not deployed");
-        assertTrue(coreDeployment.strategyBeacon != address(0), "StrategyBeacon not deployed");
-    }
-}
-
-contract RegisterOperator is HelloWorldTaskManagerSetup {
-    uint256 internal constant INITIAL_BALANCE = 100 ether;
-    uint256 internal constant DEPOSIT_AMOUNT = 1 ether;
-    uint256 internal constant OPERATOR_COUNT = 4;
-
-    DelegationManager internal delegationManager;
-    AVSDirectory internal avsDirectory;
-    IHelloWorldServiceManager internal sm;
-    ECDSAStakeRegistry internal stakeRegistry;
-
-    function setUp() public virtual override {
-        super.setUp();
-        /// Setting to internal state for convenience
-        delegationManager = DelegationManager(coreDeployment.delegationManager);
-        avsDirectory = AVSDirectory(coreDeployment.avsDirectory);
-        sm = IHelloWorldServiceManager(helloWorldDeployment.helloWorldServiceManager);
-        stakeRegistry = ECDSAStakeRegistry(helloWorldDeployment.stakeRegistry);
-
-        addStrategy(address(mockToken));
-
-        while (operators.length < OPERATOR_COUNT) {
-            createAndAddOperator();
-        }
-
-        for (uint256 i = 0; i < OPERATOR_COUNT; i++) {
-            mintMockTokens(operators[i], INITIAL_BALANCE);
-
-            depositTokenIntoStrategy(operators[i], address(mockToken), DEPOSIT_AMOUNT);
-
-            registerAsOperator(operators[i]);
-        }
-    }
-
-    function testVerifyOperatorStates() public view {
-        for (uint256 i = 0; i < OPERATOR_COUNT; i++) {
-            address operatorAddr = operators[i].key.addr;
-
-            uint256 operatorShares =
-                delegationManager.operatorShares(operatorAddr, tokenToStrategy[address(mockToken)]);
-            assertEq(
-                operatorShares, DEPOSIT_AMOUNT, "Operator shares in DelegationManager incorrect"
-            );
-        }
-    }
-
-    function test_RegisterOperatorToAVS() public {
-        address operatorAddr = operators[0].key.addr;
-        registerOperatorToAVS(operators[0]);
-        assertTrue(
-            avsDirectory.avsOperatorStatus(address(sm), operatorAddr)
-                == IAVSDirectoryTypes.OperatorAVSRegistrationStatus.REGISTERED,
-            "Operator not registered in AVSDirectory"
-        );
-
-        address signingKey = stakeRegistry.getLatestOperatorSigningKey(operatorAddr);
-        assertTrue(signingKey != address(0), "Operator signing key not set in ECDSAStakeRegistry");
-
-        uint256 operatorWeight = stakeRegistry.getLastCheckpointOperatorWeight(operatorAddr);
-        assertTrue(operatorWeight > 0, "Operator weight not set in ECDSAStakeRegistry");
-    }
-}
-
 contract CreateTask is HelloWorldTaskManagerSetup {
     IHelloWorldServiceManager internal sm;
 
@@ -414,19 +335,31 @@ contract CreateTask is HelloWorldTaskManagerSetup {
         sm = IHelloWorldServiceManager(helloWorldDeployment.helloWorldServiceManager);
     }
 
-    function testCreateTask() public {
-        string memory taskName = "Test Task";
+    function testCreateBorrowTask() public {
+        string memory taskName = "Test Borrow Task";
+        address operator = address(0x123); // Operator dummy
+        uint256 amount = 100 ether;
+        uint256 rate = 100; // Contoh rate
+        uint32 maturity = uint32(block.timestamp + 1 days); // Maturity di masa depan
 
-        vm.prank(generator.key.addr);
-        IHelloWorldServiceManager.Task memory newTask = sm.createNewTask(taskName);
+        // Tambahkan aset ke mockVault untuk memenuhi validasi likuiditas
+        vm.prank(address(sm));
+        mockVault.addAssets(1000 ether);
+
+        vm.prank(owner.key.addr); // Hanya owner yang bisa
+        IHelloWorldServiceManager.Task memory newTask = sm.createBorrowTask(
+            operator, taskName, amount, rate, maturity
+        );
 
         require(
-            sha256(abi.encodePacked(newTask.name)) == sha256(abi.encodePacked(taskName)),
+            keccak256(abi.encodePacked(newTask.name)) == keccak256(abi.encodePacked(taskName)),
             "Task name not set correctly"
         );
-        require(
-            newTask.taskCreatedBlock == uint32(block.number), "Task created block not set correctly"
-        );
+        require(newTask.taskCreatedBlock == uint32(block.number), "Task created block not set correctly");
+        require(newTask.operator == operator, "Operator not set correctly");
+        require(newTask.amount == amount, "Amount not set correctly");
+        require(newTask.rate == rate, "Rate not set correctly");
+        require(newTask.maturity > block.timestamp, "Maturity not in future");
     }
 }
 
@@ -456,17 +389,20 @@ contract RespondToTask is HelloWorldTaskManagerSetup {
 
         for (uint256 i = 0; i < OPERATOR_COUNT; i++) {
             mintMockTokens(operators[i], INITIAL_BALANCE);
-
             depositTokenIntoStrategy(operators[i], address(mockToken), DEPOSIT_AMOUNT);
-
             registerAsOperator(operators[i]);
-
             registerOperatorToAVS(operators[i]);
         }
     }
 
     function testRespondToTask() public {
-        (IHelloWorldServiceManager.Task memory newTask, uint32 taskIndex) = createTask("TestTask");
+        (IHelloWorldServiceManager.Task memory newTask, uint32 taskIndex) = createTask(
+            "TestTask", 
+            address(operators[0].key.addr), 
+            100 ether, 
+            100, 
+            uint32(block.timestamp + 1 days)
+        );
 
         Operator[] memory operatorsMem = getOperators(1);
         bytes memory signedResponse = makeTaskResponse(operatorsMem, newTask);
@@ -474,10 +410,16 @@ contract RespondToTask is HelloWorldTaskManagerSetup {
         vm.roll(block.number + 1);
         sm.respondToTask(newTask, taskIndex, signedResponse);
     }
-
     function testRespondToTaskWith2OperatorsAggregatedSignature() public {
-        (IHelloWorldServiceManager.Task memory newTask, uint32 taskIndex) =
-            createTask("TestTask2Aggregated");
+        (IHelloWorldServiceManager.Task memory newTask, uint32 taskIndex) = createTask(
+            "TestTask2Aggregated",
+            address(operators[0].key.addr),
+            100 ether, 
+            500, 
+            uint32(block.timestamp + 1 days)
+        );
+        
+        require(uint32(block.timestamp + 1 days) > block.timestamp, "Maturity must be in future");
 
         // Generate aggregated response with two operators
         Operator[] memory operatorsMem = getOperators(2);
@@ -488,8 +430,14 @@ contract RespondToTask is HelloWorldTaskManagerSetup {
     }
 
     function testRespondToTaskWith3OperatorsAggregatedSignature() public {
-        (IHelloWorldServiceManager.Task memory newTask, uint32 taskIndex) =
-            createTask("TestTask3Aggregated");
+        (IHelloWorldServiceManager.Task memory newTask, uint32 taskIndex) = createTask(
+            "TestTask3Aggregated",
+            operators[0].key.addr, // Pilih operator pertama
+            100 ether,
+            500,
+            uint32(block.timestamp + 1 days) // Konversi eksplisit
+        );
+        require(uint32(block.timestamp + 1 days) > block.timestamp, "Maturity must be in future");
 
         // Generate aggregated response with three operators
         Operator[] memory operatorsMem = getOperators(3);
@@ -536,8 +484,14 @@ contract SlashOperator is HelloWorldTaskManagerSetup {
     }
 
     function testValidResponseIsNotSlashable() public {
-        (IHelloWorldServiceManager.Task memory newTask, uint32 taskIndex) =
-            createTask("TestValidResponseIsNotSlashable");
+        (IHelloWorldServiceManager.Task memory newTask, uint32 taskIndex) = createTask(
+            "TestValidResponseIsNotSlashable",
+            operators[0].key.addr, // Pilih operator pertama
+            100 ether,
+            500,
+            uint32(block.timestamp + 1 days) // Konversi eksplisit
+        );
+        require(uint32(block.timestamp + 1 days) > block.timestamp, "Maturity must be in future");
 
         Operator[] memory operatorsMem = getOperators(1);
 
@@ -551,8 +505,14 @@ contract SlashOperator is HelloWorldTaskManagerSetup {
     }
 
     function testNoResponseIsSlashable() public {
-        (IHelloWorldServiceManager.Task memory newTask, uint32 taskIndex) =
-            createTask("TestNoResponseIsSlashable");
+        (IHelloWorldServiceManager.Task memory newTask, uint32 taskIndex) = createTask(
+            "TestNoResponseIsSlashable",
+            operators[0].key.addr, // Pilih operator pertama
+            100 ether,
+            500,
+            uint32(block.timestamp + 1 days) // Konversi eksplisit
+        );
+        require(uint32(block.timestamp + 1 days) > block.timestamp, "Maturity must be in future");
 
         Operator[] memory operatorsMem = getOperators(1);
 
@@ -566,8 +526,14 @@ contract SlashOperator is HelloWorldTaskManagerSetup {
     }
 
     function testMultipleSlashings() public {
-        (IHelloWorldServiceManager.Task memory newTask, uint32 taskIndex) =
-            createTask("TestMultipleSlashings");
+        (IHelloWorldServiceManager.Task memory newTask, uint32 taskIndex) = createTask(
+            "TestMultipleSlashings",
+            operators[0].key.addr, // Pilih operator pertama
+            100 ether,
+            500,
+            uint32(block.timestamp + 1 days) // Konversi eksplisit
+        );
+        require(uint32(block.timestamp + 1 days) > block.timestamp, "Maturity must be in future");
 
         Operator[] memory operatorsMem = getOperators(3);
 

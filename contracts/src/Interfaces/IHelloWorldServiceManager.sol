@@ -45,6 +45,14 @@ interface IHelloWorldServiceManager {
         bytes calldata signature
     ) external;
 
+    function createBorrowTask(
+        address operator,
+        string memory name,
+        uint256 amount,
+        uint256 rate,
+        uint256 maturity
+    )external returns (Task memory);
+
     function cancelBorrowTask(
         uint32 taskIndex
     ) external;

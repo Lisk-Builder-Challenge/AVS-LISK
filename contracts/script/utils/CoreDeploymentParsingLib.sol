@@ -2,8 +2,7 @@
 pragma solidity ^0.8.0;
 
 import {ProxyAdmin} from "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
-import {TransparentUpgradeableProxy} from
-    "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {UpgradeableBeacon} from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
 import {console2} from "forge-std/Test.sol";
 import {Vm} from "forge-std/Vm.sol";
@@ -56,16 +55,13 @@ library CoreDeploymentParsingLib {
         // StrategyManager start
         data.strategyManager.initPausedStatus = json.readUint(".strategyManager.initPausedStatus");
         data.strategyManager.initialOwner = json.readAddress(".strategyManager.initialOwner");
-        data.strategyManager.initialStrategyWhitelister =
-            json.readAddress(".strategyManager.initialStrategyWhitelister");
+        data.strategyManager.initialStrategyWhitelister = json.readAddress(".strategyManager.initialStrategyWhitelister");
         // StrategyManager config end
 
         // DelegationManager config start
-        data.delegationManager.initPausedStatus =
-            json.readUint(".delegationManager.initPausedStatus");
+        data.delegationManager.initPausedStatus = json.readUint(".delegationManager.initPausedStatus");
         data.delegationManager.initialOwner = json.readAddress(".delegationManager.initialOwner");
-        data.delegationManager.minWithdrawalDelayBlocks =
-            uint32(json.readUint(".delegationManager.minWithdrawalDelayBlocks"));
+        data.delegationManager.minWithdrawalDelayBlocks = uint32(json.readUint(".delegationManager.minWithdrawalDelayBlocks"));
         // DelegationManager config end
 
         // EigenPodManager config start
@@ -74,13 +70,10 @@ library CoreDeploymentParsingLib {
         // EigenPodManager config end
 
         // AllocationManager config start
-        data.allocationManager.initPausedStatus =
-            json.readUint(".allocationManager.initPausedStatus");
+        data.allocationManager.initPausedStatus = json.readUint(".allocationManager.initPausedStatus");
         data.allocationManager.initialOwner = json.readAddress(".allocationManager.initialOwner");
-        data.allocationManager.deallocationDelay =
-            uint32(json.readUint(".allocationManager.deallocationDelay"));
-        data.allocationManager.allocationConfigurationDelay =
-            uint32(json.readUint(".allocationManager.allocationConfigurationDelay"));
+        data.allocationManager.deallocationDelay = uint32(json.readUint(".allocationManager.deallocationDelay"));
+        data.allocationManager.allocationConfigurationDelay = uint32(json.readUint(".allocationManager.allocationConfigurationDelay"));
         // AllocationManager config end
 
         // StrategyFactory config start
@@ -94,26 +87,17 @@ library CoreDeploymentParsingLib {
         // AVSDirectory config end
 
         // RewardsCoordinator config start
-        data.rewardsCoordinator.initPausedStatus =
-            json.readUint(".rewardsCoordinator.initPausedStatus");
+        data.rewardsCoordinator.initPausedStatus = json.readUint(".rewardsCoordinator.initPausedStatus");
         data.rewardsCoordinator.initialOwner = json.readAddress(".rewardsCoordinator.initialOwner");
-        data.rewardsCoordinator.rewardsUpdater =
-            json.readAddress(".rewardsCoordinator.rewardsUpdater");
+        data.rewardsCoordinator.rewardsUpdater = json.readAddress(".rewardsCoordinator.rewardsUpdater");
 
-        data.rewardsCoordinator.activationDelay =
-            uint32(json.readUint(".rewardsCoordinator.activationDelay"));
-        data.rewardsCoordinator.defaultSplitBips =
-            uint16(json.readUint(".rewardsCoordinator.defaultSplitBips"));
-        data.rewardsCoordinator.calculationIntervalSeconds =
-            uint32(json.readUint(".rewardsCoordinator.calculationIntervalSeconds"));
-        data.rewardsCoordinator.maxRewardsDuration =
-            uint32(json.readUint(".rewardsCoordinator.maxRewardsDuration"));
-        data.rewardsCoordinator.maxRetroactiveLength =
-            uint32(json.readUint(".rewardsCoordinator.maxRetroactiveLength"));
-        data.rewardsCoordinator.maxFutureLength =
-            uint32(json.readUint(".rewardsCoordinator.maxFutureLength"));
-        data.rewardsCoordinator.genesisRewardsTimestamp =
-            uint32(json.readUint(".rewardsCoordinator.genesisRewardsTimestamp"));
+        data.rewardsCoordinator.activationDelay = uint32(json.readUint(".rewardsCoordinator.activationDelay"));
+        data.rewardsCoordinator.defaultSplitBips = uint16(json.readUint(".rewardsCoordinator.defaultSplitBips"));
+        data.rewardsCoordinator.calculationIntervalSeconds = uint32(json.readUint(".rewardsCoordinator.calculationIntervalSeconds"));
+        data.rewardsCoordinator.maxRewardsDuration = uint32(json.readUint(".rewardsCoordinator.maxRewardsDuration"));
+        data.rewardsCoordinator.maxRetroactiveLength = uint32(json.readUint(".rewardsCoordinator.maxRetroactiveLength"));
+        data.rewardsCoordinator.maxFutureLength = uint32(json.readUint(".rewardsCoordinator.maxFutureLength"));
+        data.rewardsCoordinator.genesisRewardsTimestamp = uint32(json.readUint(".rewardsCoordinator.genesisRewardsTimestamp"));
         // RewardsCoordinator config end
 
         data.ethPOSDeposit.ethPOSDepositAddress = address(1);
@@ -125,8 +109,7 @@ library CoreDeploymentParsingLib {
         string memory directoryPath,
         uint256 chainId
     ) internal view returns (CoreDeployLib.DeploymentConfigData memory) {
-        return
-            readDeploymentConfigValues(directoryPath, string.concat(vm.toString(chainId), ".json"));
+        return readDeploymentConfigValues(directoryPath, string.concat(vm.toString(chainId), ".json"));
     }
 
     function readDeploymentJson(
@@ -158,11 +141,13 @@ library CoreDeploymentParsingLib {
         data.strategyBeacon = json.readAddress(".addresses.strategyBeacon");
         data.rewardsCoordinator = json.readAddress(".addresses.rewardsCoordinator");
         data.permissionController = json.readAddress(".addresses.permissionController");
+        data.yieldzAVS = json.readAddress(".addresses.yieldzAVS"); // Tambahkan
+        data.vault = json.readAddress(".addresses.vault");        // Tambahkan
+        data.maxResponseIntervalBlocks = uint32(json.readUint(".maxResponseIntervalBlocks")); // Tambahkan
 
         return data;
     }
 
-    /// TODO: Need to be able to read json from eigenlayer-contracts repo for holesky/mainnet and output the json here
     function writeDeploymentJson(
         CoreDeployLib.DeploymentData memory data
     ) internal {
@@ -206,7 +191,6 @@ library CoreDeploymentParsingLib {
         CoreDeployLib.DeploymentData memory data,
         address proxyAdmin
     ) private view returns (string memory) {
-        /// TODO: namespace contracts -> {avs, core}
         return string.concat(
             '{"proxyAdmin":"',
             proxyAdmin.toHexString(),
@@ -250,6 +234,12 @@ library CoreDeploymentParsingLib {
             data.permissionController.toHexString(),
             '","permissionControllerImpl":"',
             data.permissionController.getImplementation().toHexString(),
+            '","yieldzAVS":"',
+            data.yieldzAVS.toHexString(),
+            '","vault":"',
+            data.vault.toHexString(),
+            '","maxResponseIntervalBlocks":"',
+            vm.toString(data.maxResponseIntervalBlocks),
             '"}'
         );
     }
